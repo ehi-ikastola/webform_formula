@@ -1,0 +1,103 @@
+<?php 
+
+/**
+ * Implements hook_element_info().
+ */
+function webform_formula_element_info() {
+	// A few of our components need to be defined here because Drupal does not
+	// provide these components natively. Because this hook fires on every page
+	// load (even on non-webform pages), we don't put this in the component .inc
+	// files because of the unnecessary loading that it would require.
+	$elements['webform_formula'] = array(
+			'#input' => FALSE,
+			'#theme' => 'webform_formula',
+	);
+
+	return $elements;
+}
+
+/**
+ * Implements of hook_webform_component_info().
+ */
+function webform_formula_webform_component_info() {
+	$components = array();
+
+	$components['formula'] = array(
+			'label' => t('Formula'),
+			'description' => t('Evalutates a formula with other fields values.'),
+			'features' => array(
+				'required' => FALSE,
+			),
+			'file' => 'components/formula.inc',
+	);
+
+	return $components;
+}
+
+/**
+ * Alter "webform_client_form" from to load js file
+ * @param unknown_type $form
+ * @param unknown_type $form_state
+ * @param unknown_type $form_id
+ */
+function webform_formula_form_webform_client_form_alter(&$form, &$form_state, $form_id){
+	$form['#attached']['js'] = array(
+			drupal_add_js(drupal_get_path('module', 'webform_formula') . '/js/webform_formula.js'),
+	);
+	
+	foreach ($form["submitted"] as $key => $value){
+		//Put accesible for js decimals and point data
+		if($value["#type"] == "webform_formula"){
+			$decimals = $value["#webform_component"]["extra"]["decimals"];
+			$form["submitted"][$key]["#attributes"]["decimals"] = $decimals;
+// 			$separator = $value["#webform_component"]["extra"]["separator"];
+// 			$form["submitted"][$key]["#attributes"]["separator"] = $separator;
+			$point = $value["#webform_component"]["extra"]["point"];
+			$form["submitted"][$key]["#attributes"]["point"] = $point;
+		}
+	}
+}
+
+/**
+ * @see hook_webform_submission_load().
+ * webform submissions loading.
+ *
+ * @param array $submissions
+ */
+function webform_formula_webform_submission_load(&$submissions) {
+	foreach ($submissions as $sid => $submission) {
+		_webform_formula_eval_formula_components(node_load($submission->nid), $submission);
+	}
+}
+
+/**
+ * Compute the value of webform formulate components, rather than displaying the equation
+ * Note this has to be done in node_load rather than _webform_render_formula() because of order
+ */
+function _webform_formula_eval_formula_components($webform, &$submission) {
+	$keys = array();
+	$formulas = array();
+	foreach ($webform->webform['components'] as $c) {
+		$value = $c['value']; 
+		if ($c['type'] == 'formula') {
+			$formulas[$c['cid']] = $c;
+			$formulas[$c['cid']]['value'] = $c['value'];
+		}
+		else {
+			$value = $submission->data[$c['cid']]['value'][0];
+		}
+		$keys['{'.$c['form_key'].'}'] = $value;
+	}
+	foreach ($formulas as $cid => $formula) {	
+		$formula_sintax = $formula['value'];
+		if($formula["extra"]['point'] == ','){
+			$formula_sintax = str_replace(',', '.', $formula_sintax);
+		}
+		
+		$replaced_formula = str_replace(array_keys($keys), array_values($keys), $formula_sintax);
+// 		var_dump($replaced_formula);
+		eval("\$value = $replaced_formula;");
+		
+		$submission->data[$formula['cid']]['value'][0] = $value;
+	}
+}
