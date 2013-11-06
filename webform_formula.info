@@ -1,0 +1,13 @@
+name = Webform formula
+description = Provides formula webform component. Whis this component you can enter a mathematical formula based on other fields.
+core = 7.x
+
+dependencies[] = "webform"
+
+files[] = webform_formula.module
+files[] = webform_formula.install
+
+; Information added on 2013-10-01
+version = 7.x-1.0
+package = Ikapp
+project = webform_formula
